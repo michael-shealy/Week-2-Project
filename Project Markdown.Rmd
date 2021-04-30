@@ -5,3 +5,7 @@ Here is some code
 ```{r}
 summary(mtcars)
 ```
+
+```{r}
+pairs(mtcars)
+```
