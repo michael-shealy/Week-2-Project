@@ -1,0 +1,77 @@
+# Week 2 Project #
+Michael Shealy
+==============
+
+First lets import the data. The date column is read in as a character column, so we will change that to Date
+```{r}
+data <- read.csv('activity.csv')
+print(head(data,5))
+data$date <- as.Date(data$date)
+head(data,5)
+```
+
+Now let's find the mean and median of the total number of steps taken per day
+
+```{r}
+library(dplyr)
+fulldata <- data[!is.na(data$steps),]
+dategroup <- fulldata %>% group_by(date) %>% summarize(total_steps=sum(steps))
+steps_mean <- as.integer(mean(dategroup$total_steps))
+steps_median <- median(dategroup$total_steps)
+hist(dategroup$total_steps)
+```
+
+The mean steps taken per day is `r steps_mean` and the median steps taken per day is `r steps_median`
+
+Let's look at the average daily activity pattern
+
+```{r}
+intervalgroup <- fulldata %>% group_by(interval) %>% summarize(avg_steps=mean(steps))
+max_interval <- intervalgroup[intervalgroup$avg_steps==max(intervalgroup$avg_steps),"interval"]
+max_avg_steps <- max(intervalgroup$avg_steps)
+plot(intervalgroup$interval,intervalgroup$avg_steps,type='l')
+```
+
+Interval `r max_interval` is the 5-minute interval with the highest average steps taken with `r max_avg_steps` steps.
+
+Let's look at the missing values in this dataset
+
+```{r}
+sum(is.na(data$steps))
+```
+
+There are 2,304 missing values for the steps column in the dataset. To impute these missing values, we will use the average number of steps taken during this 5-minute interval for non-missing values and use this as the imputation.
+
+```{r}
+imputed_data <- data.frame(data)
+for (i in 1:(dim(imputed_data)[1])) {
+  if (is.na(imputed_data[i,"steps"])) {
+    interval <- imputed_data[i,"interval"]
+    avg_interval_steps <- intervalgroup[intervalgroup$interval==interval,"avg_steps"]
+    imputed_data[i,"steps"] <- avg_interval_steps
+  }
+}
+impute_dategroup <- imputed_data %>% group_by(date) %>% summarize(total_steps=sum(steps))
+impute_steps_mean <- as.integer(mean(impute_dategroup$total_steps))
+impute_steps_median <- as.integer(median(impute_dategroup$total_steps))
+hist(impute_dategroup$total_steps)
+```
+
+The mean total steps each day for the imputed dataset is `r impute_steps_mean` and the median is `r impute_steps_median`. As we can see, imputing the steps did not impact the mean/median of the steps per day. This is because the missing data in this dataset consisted of missing all the step data for 8 full days. These days were not originally included in calculating the mean and median since they had no data to contribute. Since our imputation method was to use the mean of each interval, this would not change the mean/median of the overall dataset. If the missing values were instead, evenly distributed across each of the days, then the mean/median would have increased since there would be more total steps per day.
+
+Finally, lets look to see if there were differences in activity between weekdays and weekends:
+
+```{r}
+imputed_data <- mutate(imputed_data,weekday = factor(case_when(weekdays(date) %in% c("Saturday","Sunday") ~ "Weekend",
+                                                               weekdays(date) %in% c("Monday","Tuesday","Wednesday","Thursday","Friday") ~ "Weekday")))
+
+par(mfrow=c(1,2))
+
+intervalgroup_weekday <- imputed_data[imputed_data$weekday=='Weekday',] %>% group_by(interval) %>% summarize(avg_steps=mean(steps))
+plot(intervalgroup_weekday$interval,intervalgroup_weekday$avg_steps,type='l',ylim=c(0,250))
+
+intervalgroup_weekend <- imputed_data[imputed_data$weekday=='Weekend',] %>% group_by(interval) %>% summarize(avg_steps=mean(steps))
+plot(intervalgroup_weekend$interval,intervalgroup_weekend$avg_steps,type='l',ylim=c(0,250))
+```
+
+There is a higher peak in the early intervals for weekdays that weekends do not have, however the rest of the intervals look approximately the same.
